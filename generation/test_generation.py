@@ -9,18 +9,21 @@ import argparse
 from get_reasoning_traces import ReasoningTraceGenerator
 from dataset import get_val_problems, Config
 
-async def process_with_semaphore(semaphore, generator, problem, persona_type, progress_callback):
-    """Process a single response with semaphore control."""
+async def process_with_semaphore(semaphore, generator, problem, persona_type, progress_callback, wait_time=0.1):
+    """Process a single response with semaphore control and rate limiting."""
     async with semaphore:
         try:
             result = await generator.generate_response(problem, persona_type)
             progress_callback()
+            # Add wait time to prevent rate limiting
+            if wait_time > 0:
+                await asyncio.sleep(wait_time)
             return result
         except Exception as e:
             print(f"Error processing {persona_type} for problem {problem.id}: {e}")
             return None
 
-async def test_generation(num_problems=2, disable_reasoning=False, disable_naive=False, max_concurrent=5, start_id=None):
+async def test_generation(num_problems=2, disable_reasoning=False, disable_naive=False, max_concurrent=5, start_id=None, wait_time=0.1):
     """Test with specified number of problems and generation types."""
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
@@ -63,8 +66,6 @@ async def test_generation(num_problems=2, disable_reasoning=False, disable_naive
     if disable_naive:
         print("   - Naive generation disabled")
     
-    print(f"Loaded {len(problems)} problems from TACO dataset")
-    
     generator = ReasoningTraceGenerator(api_key, output_file='../data/test_responses.jsonl')
     
     # Create semaphore for controlled concurrency
@@ -81,10 +82,10 @@ async def test_generation(num_problems=2, disable_reasoning=False, disable_naive
     tasks = []
     for problem in problems:
         if not disable_naive:
-            task = process_with_semaphore(semaphore, generator, problem, "naive", progress_callback)
+            task = process_with_semaphore(semaphore, generator, problem, "naive", progress_callback, wait_time)
             tasks.append(task)
         if not disable_reasoning:
-            task = process_with_semaphore(semaphore, generator, problem, "reasoning", progress_callback)
+            task = process_with_semaphore(semaphore, generator, problem, "reasoning", progress_callback, wait_time)
             tasks.append(task)
     
     # Process all tasks concurrently
@@ -109,6 +110,8 @@ def main():
                        help='Maximum number of concurrent requests (default: 5)')
     parser.add_argument('--start-id', type=str, default=None,
                        help='Minimum problem ID to start generation from (default: None)')
+    parser.add_argument('--wait-time', type=float, default=0.1,
+                       help='Wait time between requests in seconds (default: 0.1)')
     
     args = parser.parse_args()
     
@@ -117,7 +120,8 @@ def main():
         disable_reasoning=args.disable_reasoning,
         disable_naive=args.disable_naive,
         max_concurrent=args.max_concurrent,
-        start_id=args.start_id
+        start_id=args.start_id,
+        wait_time=args.wait_time
     ))
 
 if __name__ == "__main__":
