@@ -23,7 +23,7 @@ async def process_with_semaphore(semaphore, generator, problem, persona_type, pr
             print(f"Error processing {persona_type} for problem {problem.id}: {e}")
             return None
 
-async def test_generation(num_problems=2, disable_reasoning=False, disable_naive=False, max_concurrent=5, start_id=None, wait_time=0.1):
+async def test_generation(num_problems=2, disable_reasoning=False, disable_naive=False, max_concurrent=5, start_id=None, specific_problems=None, wait_time=0.1):
     """Test with specified number of problems and generation types."""
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
@@ -34,21 +34,35 @@ async def test_generation(num_problems=2, disable_reasoning=False, disable_naive
         print("Error: Cannot disable both reasoning and naive generation")
         return
     
+    # Validate that specific_problems and start_id are not used together
+    if specific_problems is not None and start_id is not None:
+        print("Error: Cannot use both --specific-problems and --start-id at the same time")
+        return
+    
     # Load problems from TACO dataset
     config = Config()
     all_problems = get_val_problems(config, num_problems=1000)  # Load more to filter from
     
-    # Filter problems by start_id if specified
-    if start_id is not None:
+    # Filter problems based on specific criteria
+    if specific_problems is not None:
+        # Convert specific_problems to strings for comparison
+        specific_ids = [str(pid) for pid in specific_problems]
+        problems = [p for p in all_problems if p.id in specific_ids]
+        print(f"Filtered to {len(problems)} problems with specific IDs: {specific_problems}")
+        if len(problems) < len(specific_problems):
+            found_ids = [p.id for p in problems]
+            missing_ids = [pid for pid in specific_ids if pid not in found_ids]
+            print(f"Warning: Could not find problems with IDs: {missing_ids}")
+        print(f"Note: Using specific problem IDs, ignoring --num-problems parameter")
+    elif start_id is not None:
         # Convert start_id to string for comparison
         start_id_str = str(start_id)
         problems = [p for p in all_problems if p.id >= start_id_str]
         print(f"Filtered to {len(problems)} problems with ID >= {start_id_str}")
     else:
         problems = all_problems
-    
-    # Take only the requested number of problems
-    problems = problems[:num_problems]
+        # Take only the requested number of problems
+        problems = problems[:num_problems]
     
     # Calculate expected number of responses
     expected_responses = 0
@@ -59,7 +73,9 @@ async def test_generation(num_problems=2, disable_reasoning=False, disable_naive
     
     print(f"🧪 Testing with {len(problems)} problems ({expected_responses} responses total)...")
     print(f"   - Max concurrent requests: {max_concurrent}")
-    if start_id is not None:
+    if specific_problems is not None:
+        print(f"   - Specific problem IDs: {specific_problems}")
+    elif start_id is not None:
         print(f"   - Starting from problem ID: {start_id}")
     if disable_reasoning:
         print("   - Reasoning generation disabled")
@@ -110,6 +126,8 @@ def main():
                        help='Maximum number of concurrent requests (default: 5)')
     parser.add_argument('--start-id', type=str, default=None,
                        help='Minimum problem ID to start generation from (default: None)')
+    parser.add_argument('--specific-problems', type=int, nargs='+', default=None,
+                       help='Specific problem IDs to generate for (e.g., --specific-problems 203 193)')
     parser.add_argument('--wait-time', type=float, default=0.1,
                        help='Wait time between requests in seconds (default: 0.1)')
     
@@ -121,6 +139,7 @@ def main():
         disable_naive=args.disable_naive,
         max_concurrent=args.max_concurrent,
         start_id=args.start_id,
+        specific_problems=args.specific_problems,
         wait_time=args.wait_time
     ))
 

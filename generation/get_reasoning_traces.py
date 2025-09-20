@@ -68,9 +68,13 @@ class ReasoningTraceGenerator:
         
         try:
             if persona_type == "reasoning":
-                # Generate prompt with test inputs
-                prompt = get_reasoner_prompt(question, test_inputs)
+                # Generate prompt with test inputs (filtering happens inside get_reasoner_prompt)
+                prompt = get_reasoner_prompt(question, test_inputs, test_outputs)
                 messages = self.create_messages(prompt)
+                
+                # Get filtered inputs for response data
+                from prompts import filter_inputs_already_in_description
+                filtered_inputs, filtered_outputs = filter_inputs_already_in_description(question, test_inputs, test_outputs)
                 
                 # Get the full response
                 full_response = await self.client.async_chat(
@@ -116,15 +120,15 @@ class ReasoningTraceGenerator:
                                     for item in outputs_str.split(','):
                                         item = item.strip().strip("'\"")
                                         outputs.append(item)
-                                    # Only take the first N outputs where N is the number of test inputs
-                                    expected_outputs = outputs[:len(test_inputs)]
-                                    generated_outputs = outputs[:len(test_inputs)]
+                                    # Only take the first N outputs where N is the number of filtered inputs
+                                    expected_outputs = outputs[:len(filtered_inputs)]
+                                    generated_outputs = outputs[:len(filtered_inputs)]
                                 except:
                                     expected_outputs = [str(output) for output in test_outputs]
-                                    generated_outputs = ["N/A"] * len(test_inputs)
+                                    generated_outputs = ["N/A"] * len(filtered_inputs)
                             else:
                                 expected_outputs = [str(output) for output in test_outputs]
-                                generated_outputs = ["N/A"] * len(test_inputs)
+                                generated_outputs = ["N/A"] * len(filtered_inputs)
                             parsed_output = None
                     
                     if parsed_output:
@@ -140,13 +144,13 @@ class ReasoningTraceGenerator:
                         else:
                             # Fallback: use actual expected outputs from the problem data
                             expected_outputs = [str(output) for output in test_outputs]
-                            generated_outputs = ["N/A"] * len(test_inputs)
+                            generated_outputs = ["N/A"] * len(filtered_inputs)
                         
                 except json.JSONDecodeError:
                     # Fallback to plain text if JSON parsing fails
                     reasoning_text = full_response
                     expected_outputs = [str(output) for output in test_outputs]
-                    generated_outputs = ["N/A"] * len(test_inputs)
+                    generated_outputs = ["N/A"] * len(filtered_inputs)
                 
                 # Store the reasoning text directly as the trace
                 structured_trace = reasoning_text
@@ -160,8 +164,8 @@ class ReasoningTraceGenerator:
                     "problem_id": int(problem_id),
                     "type": persona_type,
                     "trace": structured_trace,
-                    "inputs": test_inputs,
-                    "expected_outputs": expected_outputs,
+                    "inputs": filtered_inputs,  # Use filtered inputs instead of all test inputs
+                    "expected_outputs": filtered_outputs if filtered_outputs else expected_outputs,  # Use filtered outputs if available
                     "generated_outputs": generated_outputs,
                     "confusion_matrix": confusion_matrix
                 }

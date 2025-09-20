@@ -25,11 +25,133 @@ Write your code in Python. The expected formatting is:
 YOUR CODE HERE
 ```"""
 
-def get_reasoner_prompt(problem_description: str, test_inputs: list) -> str:
-    """Generate prompt for reasoner persona."""
-    inputs_text = "\n".join([f"Input {i+1}: {inp}" for i, inp in enumerate(test_inputs)])
+def normalize_text(text):
+    """Normalize text for comparison by removing extra whitespace and converting to lowercase."""
+    if isinstance(text, list):
+        # Join list elements with newlines and normalize
+        text = '\n'.join(str(item) for item in text)
     
-    return f"""You are a competitive programmer who reasons through test case inputs for problems to get the outputs.
+    # Convert to string and normalize
+    text_str = str(text).strip()
+    if not text_str:
+        return ""
+    
+    # Replace various whitespace characters with single spaces
+    normalized = text_str.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+    # Collapse multiple spaces into single spaces
+    normalized = ' '.join(normalized.split())
+    return normalized.lower()
+
+def find_sample_input_output_pairs(problem_description: str):
+    """Extract sample input/output pairs from problem description."""
+    import re
+    
+    # Look for common patterns in competitive programming problems
+    patterns = [
+        # Pattern 1: Sample Input: ... Sample Output: ...
+        r'(?:sample|example)\s+input[:\s]*\n?(.*?)(?:\n.*?)?(?:sample|example)\s+output[:\s]*\n?(.*?)(?:\n\n|\n(?:note|constraint|explanation)|$)',
+        # Pattern 2: Input: ... Output: ...
+        r'input[:\s]*\n?(.*?)(?:\n.*?)?output[:\s]*\n?(.*?)(?:\n\n|\n(?:note|constraint|explanation)|$)',
+        # Pattern 3: More flexible pattern
+        r'(?:input|sample)[:\s]*\n?(.*?)(?:\n.*?)?(?:output|sample\s+output)[:\s]*\n?(.*?)(?:\n\n|$)',
+    ]
+    
+    pairs = []
+    desc_lower = problem_description.lower()
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, problem_description, re.DOTALL | re.IGNORECASE)
+        for match in matches:
+            input_text = match[0].strip()
+            output_text = match[1].strip()
+            if input_text and output_text:
+                pairs.append((input_text, output_text))
+    
+    return pairs
+
+def filter_inputs_already_in_description(problem_description: str, test_inputs: list, test_outputs: list = None) -> list:
+    """Filter out test inputs that already appear in the problem description."""
+    if not test_inputs:
+        return []
+    
+    # Extract sample input/output pairs from the problem description
+    sample_pairs = find_sample_input_output_pairs(problem_description)
+    
+    # Normalize the problem description
+    desc_normalized = normalize_text(problem_description)
+    
+    filtered_inputs = []
+    filtered_outputs = [] if test_outputs else None
+    
+    for i, inp in enumerate(test_inputs):
+        # Normalize the input for comparison
+        inp_normalized = normalize_text(inp)
+        if not inp_normalized:
+            continue
+        
+        # Check if this input appears in the problem description
+        is_duplicate = False
+        
+        # Method 1: Check if input appears directly in description
+        if inp_normalized in desc_normalized:
+            is_duplicate = True
+            print(f"Filtering out input (direct match): {repr(inp)}")
+        
+        # Method 2: Check against extracted sample pairs
+        if not is_duplicate:
+            for sample_input, sample_output in sample_pairs:
+                sample_input_normalized = normalize_text(sample_input)
+                if sample_input_normalized and inp_normalized in sample_input_normalized:
+                    is_duplicate = True
+                    print(f"Filtering out input (sample pair match): {repr(inp)}")
+                    break
+        
+        # Method 3: Check if input lines appear individually in description
+        # Only do this if the input is a single line or very short
+        if not is_duplicate and isinstance(inp, list) and len(inp) <= 2:
+            for line in inp:
+                line_normalized = normalize_text(line)
+                if line_normalized and len(line_normalized) > 3 and line_normalized in desc_normalized:
+                    is_duplicate = True
+                    print(f"Filtering out input (line match): {repr(inp)}")
+                    break
+        
+        # Method 4: Check if corresponding output also appears (if provided)
+        if not is_duplicate and test_outputs and i < len(test_outputs):
+            output_normalized = normalize_text(test_outputs[i])
+            if output_normalized and output_normalized in desc_normalized:
+                # Check if this input-output pair appears together
+                for sample_input, sample_output in sample_pairs:
+                    sample_input_normalized = normalize_text(sample_input)
+                    sample_output_normalized = normalize_text(sample_output)
+                    if (sample_input_normalized and sample_output_normalized and
+                        inp_normalized in sample_input_normalized and 
+                        output_normalized in sample_output_normalized):
+                        is_duplicate = True
+                        print(f"Filtering out input (input-output pair match): {repr(inp)}")
+                        break
+        
+        if not is_duplicate:
+            filtered_inputs.append(inp)
+            if filtered_outputs is not None and test_outputs and i < len(test_outputs):
+                filtered_outputs.append(test_outputs[i])
+    
+    return filtered_inputs, filtered_outputs
+
+def get_reasoner_prompt(problem_description: str, test_inputs: list, test_outputs: list = None) -> str:
+    """Generate prompt for reasoner persona."""
+    # Filter out inputs that already appear in the problem description
+    filtered_inputs, filtered_outputs = filter_inputs_already_in_description(problem_description, test_inputs, test_outputs)
+    
+    if not filtered_inputs:
+        # If no additional inputs after filtering, modify the prompt
+        inputs_text = "No additional test inputs provided (all inputs already appear in the problem description)."
+        additional_instruction = "Please reason through the sample inputs provided in the problem description and provide the expected outputs."
+    else:
+        inputs_text = "\n".join([f"Input {i+1}: {inp}" for i, inp in enumerate(filtered_inputs)])
+        additional_instruction = "For each test input, show your step-by-step reasoning and provide the expected output."
+    
+    res = f"""You are a competitive programmer who reasons through test case inputs for problems to get the outputs.
 
 Given a competitive programming problem with sample inputs and outputs, and additional test inputs:
 1. Look at the problem description and understand the pattern from the sample inputs/outputs.
@@ -43,7 +165,7 @@ Problem:
 Additional test inputs to reason through:
 {inputs_text}
 
-For each test input, show your step-by-step reasoning and provide the expected output.
+{additional_instruction}
 
 Please provide your detailed reasoning as text, and at the very end, include a JSON object with the outputs.
 
@@ -54,6 +176,8 @@ IMPORTANT: You must end your response with a JSON object in this exact format:
   "outputs": ["4", "-1", "15"]
 }}
 ```"""
+    print(res)
+    return res
 
 def get_reasoner_schema() -> Dict[str, Any]:
     """Get JSON schema for structured output from reasoner."""

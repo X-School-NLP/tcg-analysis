@@ -199,8 +199,9 @@ function indexProblems(rows) {
   state.problemsByIndex.clear();
   rows.forEach((row, idx) => {
     const name = (row.name || '').trim();
-    const oneBased = idx + 1; // treat as problem_id
-    state.problemsByIndex.set(String(oneBased), row);
+    // Use the actual problem_id from the data, not the array index
+    const problemId = row.problem_id || String(idx + 1);
+    state.problemsByIndex.set(String(problemId), row);
     if (name) {
       state.problemsByName.set(name, row);
     }
