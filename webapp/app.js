@@ -5,7 +5,7 @@ const state = {
   problemsByIndex: new Map(), // 1-based index -> problem row
   difficulties: new Set(),
   types: new Set(),
-  filters: { difficulty: '', type: '', search: '', category: '', showSubmitted: true },
+  filters: { difficulty: '', type: '', search: '', category: '', showSubmitted: true, hideCorrect: false },
   categories: [], // [{id, name}]
   annotations: {}, // responseId -> { description, categoryId, submittedAt? }
   pagination: { page: 1, size: 25 },
@@ -29,10 +29,17 @@ const el = {
   exportData: document.getElementById('exportData'),
   importData: document.getElementById('importData'),
   toggleSubmittedBtn: document.getElementById('toggleSubmittedBtn'),
+  toggleCorrectBtn: document.getElementById('toggleCorrectBtn'),
   categoryList: document.getElementById('categoryList'),
   addCategory: document.getElementById('addCategory'),
   newCategoryName: document.getElementById('newCategoryName'),
 };
+
+// Debug: Check if toggleCorrectBtn element exists
+console.log('toggleCorrectBtn element:', el.toggleCorrectBtn);
+if (!el.toggleCorrectBtn) {
+  console.error('toggleCorrectBtn element not found!');
+}
 
 /* Utilities */
 function saveLocal() {
@@ -467,6 +474,11 @@ function applyFilters(r) {
     const ann = state.annotations[r.id] || {};
     if (ann.submittedAt) return false;
   }
+  if (state.filters.hideCorrect) {
+    // Hide responses that are 100% correct (accuracy === 1.0)
+    const confusionMatrix = r.confusion_matrix || {};
+    if (confusionMatrix.accuracy === 1.0) return false;
+  }
   if (search) {
     const ann = state.annotations[r.id] || {};
     const hay = `${r.id}\n${r.problemId}\n${r.problemName}\n${r.model}\n${r.type}\n${ann.description || ''}`.toLowerCase();
@@ -623,12 +635,50 @@ function refreshSubmittedBtnLabel() {
   el.toggleSubmittedBtn.textContent = state.filters.showSubmitted ? 'Hide submitted' : 'Show submitted';
 }
 
+function refreshCorrectBtnLabel() {
+  if (el.toggleCorrectBtn) {
+    el.toggleCorrectBtn.textContent = state.filters.hideCorrect ? 'Show 100% correct' : 'Hide 100% correct';
+  } else {
+    console.error('Cannot refresh correct button label - element not found');
+  }
+}
+
 el.toggleSubmittedBtn.addEventListener('click', () => {
   state.filters.showSubmitted = !state.filters.showSubmitted;
   state.pagination.page = 1;
   refreshSubmittedBtnLabel();
   render();
 });
+
+// Add event listener for toggle correct button with DOM ready check
+document.addEventListener('DOMContentLoaded', () => {
+  const toggleCorrectBtn = document.getElementById('toggleCorrectBtn');
+  if (toggleCorrectBtn) {
+    console.log('Adding event listener to toggleCorrectBtn');
+    toggleCorrectBtn.addEventListener('click', () => {
+      console.log('Toggle correct button clicked!');
+      state.filters.hideCorrect = !state.filters.hideCorrect;
+      state.pagination.page = 1;
+      refreshCorrectBtnLabel();
+      render();
+    });
+  } else {
+    console.error('toggleCorrectBtn element not found in DOMContentLoaded');
+  }
+});
+
+// Fallback: try to add event listener immediately
+if (el.toggleCorrectBtn) {
+  el.toggleCorrectBtn.addEventListener('click', () => {
+    console.log('Toggle correct button clicked! (immediate)');
+    state.filters.hideCorrect = !state.filters.hideCorrect;
+    state.pagination.page = 1;
+    refreshCorrectBtnLabel();
+    render();
+  });
+} else {
+  console.error('Cannot add event listener to toggleCorrectBtn - element not found');
+}
 
 el.exportData.addEventListener('click', () => {
   const payload = {
@@ -723,8 +773,9 @@ render();
     await loadServerAnnotations();
     hydrateFilters();
     state.pagination.page = 1;
-    // initialize toggle button label
+    // initialize toggle button labels
     refreshSubmittedBtnLabel();
+    refreshCorrectBtnLabel();
     console.log('Data loaded - responses:', state.responses.length);
     if (state.responses.length > 0) {
       console.log('First response confusion_matrix:', state.responses[0].confusion_matrix);
