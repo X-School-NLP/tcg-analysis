@@ -63,6 +63,36 @@ def map_taco_problem(problem: dict, idx: int) -> Problem:
         time_limit = time_limit,
         memory_limit = memory_limit
     )
+def map_usaco_problem(problem: dict, idx: int) -> Problem:
+    """
+    Convert a USACO dataset problem dictionary to our Problem data structure
+    Extracts input/output pairs and other metadata from the USACO format
+    """
+    
+
+    time_limit = problem.get("runtime_limit") 
+    
+    # Parse memory limit (e.g., "256.0 megabytes" -> 256)
+    memory_limit = problem.get("memory_limit")  # default
+    
+    
+    return Problem(
+        id = str(idx + 1),
+        #id is no need 
+        name = problem.get("name") or f"Problem {idx + 1}",
+        
+        statement = problem["question"],
+        sample_inputs = [], #is in the link
+        sample_outputs = [], #is in the link
+        difficulty = problem.get("problem_level") or "UNKNOWN_DIFFICULTY",
+        #what is eval for?
+        #solutions = eval(problem["solutions"]) if problem["solutions"] else [],
+        
+        solutions = problem.get("solution"), #IS NOT CODE
+        time_limit = time_limit,
+        memory_limit = memory_limit
+    )
+
 
 def get_mapped_taco(config: Config, split="train", remove_interactive=True) -> List[Problem]:
     """
