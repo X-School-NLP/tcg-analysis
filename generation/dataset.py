@@ -5,6 +5,7 @@ import json
 import pickle
 import os
 import asyncio
+from pandas import describe_option
 import tqdm
 import sys
 from data_structures import Problem, Config
@@ -68,7 +69,6 @@ def map_usaco_problem(problem: dict, idx: int) -> Problem:
     Convert a USACO dataset problem dictionary to our Problem data structure
     Extracts input/output pairs and other metadata from the USACO format
     """
-    
 
     time_limit = problem.get("runtime_limit") 
     
@@ -93,7 +93,20 @@ def map_usaco_problem(problem: dict, idx: int) -> Problem:
         memory_limit = memory_limit
     )
 
-
+#load_dataset("deepmind/code_contests", split="train")
+def map_codecontests_dataset(problem: dict, idx: int){
+    return Problem(
+        id = str(idx + 1),
+        name = problem["name"],
+        statement = problem["description"],
+        sample_inputs = problem["public_tests"["input"],
+        sample_outputs = problem["public_tests"]["output"],
+        difficulty = problem["difficulty"],
+        solution = problem["solutions"], #solutions are in multiple languages, idk
+        time_limit = problem["time_limit"]["nanos"]/1000000000,
+        memory_limit = problem["memory_limit_bytes"]/1000000
+    )
+}
 def get_mapped_taco(config: Config, split="train", remove_interactive=True) -> List[Problem]:
     """
     Load and process the TACO dataset, converting it to our Problem format
