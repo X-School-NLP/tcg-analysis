@@ -25,7 +25,18 @@ git clone https://github.com/qykr/tcg-analysis.git
 cd tcg-analysis
 ```
 
-2) Start the web application
+2) Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+3) Update submodules
+```bash
+git submodule update --init --recursive
+```
+
+
+4) Start the web application
 
 ```bash
 python3 run_webapp.py
@@ -33,12 +44,12 @@ python3 run_webapp.py
 
 This starts on http://127.0.0.1:5173/.
 
-3) Open the app
+5) Open the app
 - Navigate to `http://127.0.0.1:5173/` in your browser.
 - If `data/responses.json` and `data/validation_problems.json` exist, they load automatically.
 - Otherwise, use the file pickers at the top to upload them manually.
 
-4) Review and annotate
+6) Review and annotate
 - Use the filters (difficulty, type, search, category).
 - Expand “Problem details” to see the Markdown-rendered description, tags, URL, time and memory limits.
 - Add a description and assign a category. Edits autosave.
