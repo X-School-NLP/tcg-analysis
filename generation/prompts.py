@@ -138,10 +138,13 @@ def filter_inputs_already_in_description(problem_description: str, test_inputs: 
     
     return filtered_inputs, filtered_outputs
 
-def get_reasoner_prompt(problem_description: str, test_inputs: list, test_outputs: list = None) -> str:
+def get_reasoner_prompt(problem_description: str, test_inputs: list, test_outputs: list = None, disable_filtering: bool = False) -> str:
     """Generate prompt for reasoner persona."""
-    # Filter out inputs that already appear in the problem description
-    filtered_inputs, filtered_outputs = filter_inputs_already_in_description(problem_description, test_inputs, test_outputs)
+    # Filter out inputs that already appear in the problem description (unless disabled)
+    if disable_filtering:
+        filtered_inputs, filtered_outputs = test_inputs, test_outputs
+    else:
+        filtered_inputs, filtered_outputs = filter_inputs_already_in_description(problem_description, test_inputs, test_outputs)
     
     if not filtered_inputs:
         # If no additional inputs after filtering, modify the prompt

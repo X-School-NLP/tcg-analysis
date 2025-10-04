@@ -33,7 +33,52 @@ class ReasoningTraceGenerator:
         self.output_file = output_file
         self.results = []
         self.sandbox = SandboxExecutor()  # Use default local code runner
+        
+        # Filtering options
+        self.disable_input_filtering = False
+        self.max_input_length = 1000
+        self.max_output_length = 1000
     
+    def filter_by_size(self, test_inputs: list, test_outputs: list = None) -> tuple:
+        """Filter test inputs and outputs by size limits."""
+        if not test_inputs:
+            return [], []
+        
+        filtered_inputs = []
+        filtered_outputs = [] if test_outputs else None
+        
+        for i, inp in enumerate(test_inputs):
+            # Calculate total length of input (join all lines if it's a list)
+            if isinstance(inp, list):
+                input_length = sum(len(str(line)) for line in inp)
+            else:
+                input_length = len(str(inp))
+            
+            # Check input length
+            if input_length > self.max_input_length:
+                #print(f"Filtering out input (too large: {input_length} > {self.max_input_length}): {repr(inp)}")
+                continue
+            
+            # Check corresponding output length if provided
+            if test_outputs and i < len(test_outputs):
+                output = test_outputs[i]
+                if isinstance(output, list):
+                    output_length = sum(len(str(line)) for line in output)
+                else:
+                    output_length = len(str(output))
+                
+                if output_length > self.max_output_length:
+                    #print(f"Filtering out input-output pair (output too large: {output_length} > {self.max_output_length})")
+                    continue
+                
+                filtered_inputs.append(inp)
+                if filtered_outputs is not None:
+                    filtered_outputs.append(output)
+            else:
+                filtered_inputs.append(inp)
+        
+        return filtered_inputs, filtered_outputs
+
     def parse_input_output(self, problem) -> str:
         """Parse input/output from Problem object to extract input format description."""
         if hasattr(problem, 'sample_inputs') and problem.sample_inputs:
@@ -68,13 +113,21 @@ class ReasoningTraceGenerator:
         
         try:
             if persona_type == "reasoning":
-                # Generate prompt with test inputs (filtering happens inside get_reasoner_prompt)
-                prompt = get_reasoner_prompt(question, test_inputs, test_outputs)
-                messages = self.create_messages(prompt)
+                # Apply description-based filtering if not disabled
+                if not self.disable_input_filtering:
+                    from prompts import filter_inputs_already_in_description
+                    filtered_inputs, filtered_outputs = filter_inputs_already_in_description(question, test_inputs, test_outputs)
+                else:
+                    filtered_inputs, filtered_outputs = test_inputs, test_outputs
                 
-                # Get filtered inputs for response data
-                from prompts import filter_inputs_already_in_description
-                filtered_inputs, filtered_outputs = filter_inputs_already_in_description(question, test_inputs, test_outputs)
+                filtered_inputs, filtered_outputs = self.filter_by_size(filtered_inputs, filtered_outputs)
+                if len(filtered_inputs) == 0:
+                    print(f"Warning: No inputs after filtering, skipping problem {problem_id}")
+                    return None
+                
+                # Generate prompt with filtered test inputs
+                prompt = get_reasoner_prompt(question, filtered_inputs, filtered_outputs, disable_filtering=self.disable_input_filtering)
+                messages = self.create_messages(prompt)
                 
                 # Get the full response
                 full_response = await self.client.async_chat(

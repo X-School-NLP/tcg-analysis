@@ -7,6 +7,7 @@ import asyncio
 import subprocess
 import sys
 import os
+from CodeTest.code.map_codetest import load_codetest_dataset_pkl
 from dataset import get_val_problems, Config
 
 async def main():
@@ -22,7 +23,8 @@ async def main():
         # Load problems from TACO dataset
         print("📊 Loading problems from TACO dataset...")
         config = Config()
-        problems = get_val_problems(config, num_problems=300)  # Load 300 validation problems
+        #problems = get_val_problems(config, num_problems=300)  # Load 300 validation problems
+        problems = load_codetest_dataset_pkl(config.val_problems_path)
         print(f"✅ Loaded {len(problems)} problems from TACO dataset")
         
         # Run the trace generation

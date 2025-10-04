@@ -5,9 +5,15 @@ Test script to generate a small number of responses for testing.
 
 import asyncio
 import os
+import sys
 import argparse
+
+# Add parent directory to Python path to allow importing CodeTest
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from get_reasoning_traces import ReasoningTraceGenerator
 from dataset import get_val_problems, Config
+from CodeTest.code.map_codetest import load_codetest_dataset_pkl
 
 async def process_with_semaphore(semaphore, generator, problem, persona_type, progress_callback, wait_time=0.1):
     """Process a single response with semaphore control and rate limiting."""
@@ -23,7 +29,7 @@ async def process_with_semaphore(semaphore, generator, problem, persona_type, pr
             print(f"Error processing {persona_type} for problem {problem.id}: {e}")
             return None
 
-async def test_generation(num_problems=2, disable_reasoning=False, disable_naive=False, max_concurrent=5, start_id=None, specific_problems=None, wait_time=0.1):
+async def test_generation(num_problems=1, disable_reasoning=False, disable_naive=False, max_concurrent=5, start_id=None, specific_problems=None, wait_time=0.1, use_codetest=False, disable_input_filtering=False, max_input_length=100, max_output_length=100):
     """Test with specified number of problems and generation types."""
     api_key = os.getenv('OPENROUTER_API_KEY')
     if not api_key:
@@ -41,7 +47,12 @@ async def test_generation(num_problems=2, disable_reasoning=False, disable_naive
     
     # Load problems from TACO dataset
     config = Config()
-    all_problems = get_val_problems(config, num_problems=1000)  # Load more to filter from
+    if use_codetest:
+        print("Using the CodeTest dataset")
+        all_problems = load_codetest_dataset_pkl()
+    else:
+        print("Using the TACO dataset")
+        all_problems = get_val_problems(config, num_problems=1000)
     
     # Filter problems based on specific criteria
     if specific_problems is not None:
@@ -58,11 +69,9 @@ async def test_generation(num_problems=2, disable_reasoning=False, disable_naive
         # Convert start_id to string for comparison
         start_id_str = str(start_id)
         problems = [p for p in all_problems if p.id >= start_id_str]
-        print(f"Filtered to {len(problems)} problems with ID >= {start_id_str}")
-    else:
-        problems = all_problems
-        # Take only the requested number of problems
         problems = problems[:num_problems]
+    else:
+        problems = all_problems[:num_problems]
     
     # Calculate expected number of responses
     expected_responses = 0
@@ -83,6 +92,11 @@ async def test_generation(num_problems=2, disable_reasoning=False, disable_naive
         print("   - Naive generation disabled")
     
     generator = ReasoningTraceGenerator(api_key, output_file='../data/test_responses.jsonl')
+    
+    # Set filtering options
+    generator.disable_input_filtering = disable_input_filtering
+    generator.max_input_length = max_input_length
+    generator.max_output_length = max_output_length
     
     # Create semaphore for controlled concurrency
     semaphore = asyncio.Semaphore(max_concurrent)
@@ -130,7 +144,14 @@ def main():
                        help='Specific problem IDs to generate for (e.g., --specific-problems 203 193)')
     parser.add_argument('--wait-time', type=float, default=0.1,
                        help='Wait time between requests in seconds (default: 0.1)')
-    
+    parser.add_argument('--use-codetest', action='store_true',
+                       help='Use CodeTest dataset instead of TACO dataset')
+    parser.add_argument('--disable-input-filtering', action='store_true',
+                       help='Disable filtering of inputs that appear in problem description (default: False)')
+    parser.add_argument('--max-input-length', type=int, default=1000,
+                       help='Maximum length for test inputs (default: 1000)')
+    parser.add_argument('--max-output-length', type=int, default=1000,
+                       help='Maximum length for test outputs (default: 1000)')
     args = parser.parse_args()
     
     asyncio.run(test_generation(
@@ -140,7 +161,11 @@ def main():
         max_concurrent=args.max_concurrent,
         start_id=args.start_id,
         specific_problems=args.specific_problems,
-        wait_time=args.wait_time
+        wait_time=args.wait_time,
+        use_codetest=args.use_codetest,
+        disable_input_filtering=args.disable_input_filtering,
+        max_input_length=args.max_input_length,
+        max_output_length=args.max_output_length
     ))
 
 if __name__ == "__main__":
