@@ -80,6 +80,7 @@ async def test_generation(num_problems=1, disable_reasoning=False, disable_naive
     if not disable_reasoning:
         expected_responses += len(problems)
     
+    print(f"Original number of problems: {num_problems}")
     print(f"🧪 Testing with {len(problems)} problems ({expected_responses} responses total)...")
     print(f"   - Max concurrent requests: {max_concurrent}")
     if specific_problems is not None:

@@ -9,6 +9,7 @@ import asyncio
 import json
 import time
 import os
+import logging
 from typing import Dict, List, Any
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -25,6 +26,10 @@ from confusion_matrix_utils import calculate_confusion_matrix_stats
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class ReasoningTraceGenerator:
     def __init__(self, api_key: str, model: str = "qwen/qwen3-next-80b-a3b-thinking", output_file: str = "responses.jsonl"):
@@ -56,7 +61,7 @@ class ReasoningTraceGenerator:
             
             # Check input length
             if input_length > self.max_input_length:
-                #print(f"Filtering out input (too large: {input_length} > {self.max_input_length}): {repr(inp)}")
+                logger.debug(f"Filtering out input (too large: {input_length} > {self.max_input_length}): {repr(inp)}")
                 continue
             
             # Check corresponding output length if provided
@@ -68,7 +73,7 @@ class ReasoningTraceGenerator:
                     output_length = len(str(output))
                 
                 if output_length > self.max_output_length:
-                    #print(f"Filtering out input-output pair (output too large: {output_length} > {self.max_output_length})")
+                    logger.debug(f"Filtering out input-output pair (output too large: {output_length} > {self.max_output_length})")
                     continue
                 
                 filtered_inputs.append(inp)
@@ -122,8 +127,10 @@ class ReasoningTraceGenerator:
                 
                 filtered_inputs, filtered_outputs = self.filter_by_size(filtered_inputs, filtered_outputs)
                 if len(filtered_inputs) == 0:
-                    print(f"Warning: No inputs after filtering, skipping problem {problem_id}")
+                    logger.warning(f"No inputs after filtering, skipping problem {problem_id}")
                     return None
+        
+                logger.info(f"Number of test cases for problem {problem_id} after filtering: {len(filtered_inputs)}")
                 
                 # Generate prompt with filtered test inputs
                 prompt = get_reasoner_prompt(question, filtered_inputs, filtered_outputs, disable_filtering=self.disable_input_filtering)
@@ -273,12 +280,12 @@ class ReasoningTraceGenerator:
             return response
             
         except Exception as e:
-            print(f"Error generating response for problem {problem_id} ({persona_type}): {e}")
+            logger.error(f"Error generating response for problem {problem_id} ({persona_type}): {e}")
             return None
     
     async def process_problems(self, json_file: str, max_problems: int = 300):
         """Process problems from JSON and generate responses."""
-        print(f"Reading problems from {json_file}...")
+        logger.info(f"Reading problems from {json_file}...")
         
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -319,7 +326,7 @@ class ReasoningTraceGenerator:
             tasks.append(self.generate_response(problem, "reasoning"))
         
         # Process with progress bar
-        print(f"Generating {len(tasks)} responses...")
+        logger.info(f"Generating {len(tasks)} responses...")
         results = []
         
         # Use asyncio.as_completed with tqdm
@@ -332,7 +339,7 @@ class ReasoningTraceGenerator:
                 # Small delay to avoid rate limiting
                 await asyncio.sleep(0.1)
         
-        print(f"Generated {len(results)} responses, saved to {self.output_file}")
+        logger.info(f"Generated {len(results)} responses, saved to {self.output_file}")
     
     async def process_problems_from_list(self, problems):
         """Process problems from a list of Problem objects."""
@@ -351,7 +358,7 @@ class ReasoningTraceGenerator:
             tasks.append(self.generate_response(problem, "reasoning"))
         
         # Process with progress bar
-        print(f"Generating {len(tasks)} responses...")
+        logger.info(f"Generating {len(tasks)} responses...")
         results = []
         
         # Use asyncio.as_completed with tqdm
@@ -364,12 +371,12 @@ class ReasoningTraceGenerator:
                 # Small delay to avoid rate limiting
                 await asyncio.sleep(0.1)
         
-        print(f"Generated {len(results)} responses, saved to {self.output_file}")
+        logger.info(f"Generated {len(results)} responses, saved to {self.output_file}")
     
     def save_results(self, output_file: str = "responses.jsonl"):
         """Save results to JSONL format (already saved line by line)."""
-        print(f"Responses already saved to {self.output_file} during generation")
-        print(f"Total responses: {len(self.results)}")
+        logger.info(f"Responses already saved to {self.output_file} during generation")
+        logger.info(f"Total responses: {len(self.results)}")
 
 async def main():
     """Main function to run the trace generation."""
@@ -389,7 +396,7 @@ async def main():
     # Results already saved line by line
     generator.save_results()
     
-    print("Done! Generated responses saved to responses.jsonl")
+    logger.info("Done! Generated responses saved to responses.jsonl")
 
 if __name__ == "__main__":
     asyncio.run(main())

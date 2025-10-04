@@ -1,7 +1,10 @@
 import json
 import re
 import requests
+import logging
 from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 from utils import test_code_multi_cases, extract_code
 from data_structures import CodeResult
 
@@ -95,7 +98,7 @@ def filter_inputs_already_in_description(problem_description: str, test_inputs: 
         # Method 1: Check if input appears directly in description
         if inp_normalized in desc_normalized:
             is_duplicate = True
-            print(f"Filtering out input (direct match): {repr(inp)}")
+            logger.debug(f"Filtering out input (direct match): {repr(inp)}")
         
         # Method 2: Check against extracted sample pairs
         if not is_duplicate:
@@ -103,7 +106,7 @@ def filter_inputs_already_in_description(problem_description: str, test_inputs: 
                 sample_input_normalized = normalize_text(sample_input)
                 if sample_input_normalized and inp_normalized in sample_input_normalized:
                     is_duplicate = True
-                    print(f"Filtering out input (sample pair match): {repr(inp)}")
+                    logger.debug(f"Filtering out input (sample pair match): {repr(inp)}")
                     break
         
         # Method 3: Check if input lines appear individually in description
@@ -113,7 +116,7 @@ def filter_inputs_already_in_description(problem_description: str, test_inputs: 
                 line_normalized = normalize_text(line)
                 if line_normalized and len(line_normalized) > 3 and line_normalized in desc_normalized:
                     is_duplicate = True
-                    print(f"Filtering out input (line match): {repr(inp)}")
+                    logger.debug(f"Filtering out input (line match): {repr(inp)}")
                     break
         
         # Method 4: Check if corresponding output also appears (if provided)
@@ -128,7 +131,7 @@ def filter_inputs_already_in_description(problem_description: str, test_inputs: 
                         inp_normalized in sample_input_normalized and 
                         output_normalized in sample_output_normalized):
                         is_duplicate = True
-                        print(f"Filtering out input (input-output pair match): {repr(inp)}")
+                        logger.debug(f"Filtering out input (input-output pair match): {repr(inp)}")
                         break
         
         if not is_duplicate:
@@ -179,7 +182,6 @@ IMPORTANT: You must end your response with a JSON object in this exact format:
   "outputs": ["4", "-1", "15"]
 }}
 ```"""
-    print(res)
     return res
 
 def get_reasoner_schema() -> Dict[str, Any]:
