@@ -6,3 +6,11 @@ validation_problems.json
 .cursor
 .vscode
 data/
+.pytest_cache/
+coverage.xml
+htmlcov/
+.coverage
+.test-suite-created.txt
+
+# Keep only AGENTS.md and README.md for documentation
+# All other .md files in root should be avoided

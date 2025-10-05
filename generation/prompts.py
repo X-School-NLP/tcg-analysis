@@ -70,10 +70,10 @@ def find_sample_input_output_pairs(problem_description: str):
     
     return pairs
 
-def filter_inputs_already_in_description(problem_description: str, test_inputs: list, test_outputs: list = None) -> list:
+def filter_inputs_already_in_description(problem_description: str, test_inputs: list, test_outputs: list = None) -> tuple:
     """Filter out test inputs that already appear in the problem description."""
     if not test_inputs:
-        return []
+        return ([], [] if test_outputs is not None else None)
     
     # Extract sample input/output pairs from the problem description
     sample_pairs = find_sample_input_output_pairs(problem_description)
