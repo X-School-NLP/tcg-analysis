@@ -12,7 +12,7 @@ LLM Response Analyzer is a web application for reviewing and annotating LLM resp
 - Support for CodeTest and TACO datasets
 - Test case generation and validation pipelines
 - Comprehensive test suite with 95+ tests and CI/CD integration
-- Code execution sandbox using SandboxFusion or CodeTest framework
+- Code execution using local Python sandbox (via multiprocessing with timeout/resource limits)
 
 ## Setup Commands
 
@@ -49,32 +49,20 @@ export OPENROUTER_API_KEY='your-api-key-here'
 ### Code Execution Setup (Optional)
 For code execution features with the naive coder persona:
 
-**Option 1: SandboxFusion (Recommended)**
-```bash
-# Automatic setup
-python setup_sandbox.py
+**Local Python Execution (Default)**
+Code execution is handled locally using Python's multiprocessing with resource limits and timeouts. No additional setup is required beyond the Python dependencies in `requirements.txt`.
 
-# Manual setup if needed
-git clone https://github.com/bytedance/SandboxFusion.git
-cd SandboxFusion
-docker build -f ./scripts/Dockerfile.base -t code_sandbox:base .
-docker build -f ./scripts/Dockerfile.server -t code_sandbox:server .
-docker run -d --rm --privileged -p 8080:8080 --name sandbox-fusion code_sandbox:server make run-online
-
-# Verify setup
-curl http://localhost:8080/health
-```
-
-**Option 2: CodeTest Sandbox**
+**CodeTest Sandbox (Optional)**
+For stricter isolation, you can build the CodeTest sandbox:
 ```bash
 cd CodeTest/sandbox
 make  # Build sandbox
 ```
 
 **Requirements for code execution:**
-- Docker installed and running
-- Port 8080 available (SandboxFusion) or use CodeTest's judge binary
-- Proper Docker permissions (may need `sudo` on Linux)
+- Python 3.8+ with multiprocessing support
+- Optional: Docker (if using CodeTest sandbox)
+- Optional: Proper Docker permissions (may need `sudo` on Linux for CodeTest sandbox)
 
 ## Running the Application
 
@@ -398,7 +386,7 @@ def test_slow_operation():
   - `conftest.py` - Pytest fixtures and configuration
 - `CodeTest/` - Test case generation framework (git submodule)
   - `pipeline/` - Generation pipelines
-  - `sandbox/` - Security sandbox system
+  - `sandbox/` - Code execution sandbox
 - `tools/` - Utility scripts
 
 ### Important Files
@@ -408,7 +396,6 @@ def test_slow_operation():
 - `requirements-test.txt` - Test-specific dependencies
 - `pytest.ini` - Pytest configuration
 - `.github/workflows/tests.yml` - CI/CD test automation
-- `setup_sandbox.py` - Automatic SandboxFusion setup script
 
 ## Code Style
 
@@ -537,12 +524,12 @@ python tools/add_problem_id_column.py
 - Annotations saved to local filesystem with validation
 
 ### Code Execution Sandbox
-- Code execution happens in isolated Docker containers (SandboxFusion or CodeTest)
+- Code execution happens in isolated Python processes using multiprocessing
 - Resource limits and timeouts enforced (30-second default timeout)
-- Only Python code is executed (other languages can be added to SandboxFusion)
-- Network access may be limited in the sandbox environment
-- Privileged Docker mode required for proper isolation
-- Sandbox should not be exposed to untrusted networks
+- Memory limits can be configured (256MB default on Unix-like systems)
+- Only Python code is executed
+- Network access is available to executed code (use caution with untrusted code)
+- For stricter isolation, CodeTest sandbox can be used (requires Docker)
 
 ### API Security
 - OpenRouter API key should be kept private and not committed to version control
@@ -591,25 +578,26 @@ tail -n 5 data/responses_taco.jsonl
 - **Large files**: JSON files >50MB may require Git LFS
 
 ### Code Execution Issues
-- **Sandbox not responding**: 
-  - Check if Docker is running: `docker ps`
-  - Verify container is started: `docker ps -a | grep sandbox-fusion`
-  - Check health endpoint: `curl http://localhost:8080/health`
-- **Permission denied**: 
-  - Ensure Docker has proper permissions (may need `sudo` on Linux)
-  - Check Docker is in privileged mode: `--privileged` flag
-- **Port conflicts**: 
-  - Change port mapping if 8080 is already in use
-  - Update sandbox URL in code configuration
+- **Execution timeout**: 
+  - Default timeout is 30 seconds per test case
+  - Adjust `time_limit` parameter in `test_code_single_case()`
+  - Check for infinite loops or very slow algorithms in generated code
 - **No code extracted**: 
   - Verify LLM response contains properly formatted Python code blocks
   - Check regex patterns in `utils.py`
-- **Execution timeout**: 
-  - Default timeout is 30 seconds
-  - Adjust time_limit parameter in `test_code_single_case()`
-- **Import errors in sandbox**: 
-  - Some Python packages may not be available in the sandbox
-  - Check SandboxFusion's Python environment configuration
+  - Ensure code blocks are marked with ```python
+- **Import errors in execution**: 
+  - Only standard library modules are available by default
+  - Additional packages: math, random, numpy (imported in utils.py)
+  - To add more packages, update `default_globals` in `utils.py`
+- **Memory errors**: 
+  - Default memory limit is 256MB on Unix-like systems
+  - Adjust `memory_limit` parameter in code execution functions
+  - Windows does not support memory limiting via resource module
+- **Process hangs**: 
+  - Multiprocessing timeout should catch hung processes
+  - Check for file I/O operations that might block
+  - Verify no infinite loops in test cases
 
 ## Performance Notes
 
@@ -627,9 +615,9 @@ tail -n 5 data/responses_taco.jsonl
 - **CodeTest Dataset**: [Klear-CodeTest on HuggingFace](https://huggingface.co/datasets/Jianlp/Klear-CodeTest)
 
 ### Code Execution
-- **SandboxFusion**: [GitHub Repository](https://github.com/bytedance/SandboxFusion)
-- **SandboxFusion Documentation**: [Official Docs](https://bytedance.github.io/SandboxFusion/)
 - **CodeTest Framework**: Git submodule included in this repository
+- **Python multiprocessing**: [Official Docs](https://docs.python.org/3/library/multiprocessing.html)
+- **Python resource module**: [Official Docs](https://docs.python.org/3/library/resource.html) (Unix-only)
 
 ### API and Models
 - **OpenRouter API**: [Website](https://openrouter.ai/)

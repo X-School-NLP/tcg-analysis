@@ -11,6 +11,7 @@ coverage.xml
 htmlcov/
 .coverage
 .test-suite-created.txt
+SandboxFusion/
 
 # Keep only AGENTS.md and README.md for documentation
 # All other .md files in root should be avoided
