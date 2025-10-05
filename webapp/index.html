@@ -10,6 +10,14 @@
   <header class="app-header">
     <h1>LLM Response Analyzer</h1>
     <div class="file-loaders">
+      <div class="dataset-selector">
+        <label for="datasetSelect">Dataset:</label>
+        <select id="datasetSelect">
+          <option value="taco">TACO</option>
+          <option value="codetest">CodeTest</option>
+        </select>
+        <button id="loadDataset" class="primary">Load Dataset</button>
+      </div>
       <label class="file-input">responses.jsonl
         <input type="file" id="responsesFile" accept=".jsonl,.json" />
       </label>

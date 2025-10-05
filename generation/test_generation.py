@@ -92,7 +92,13 @@ async def test_generation(num_problems=1, disable_reasoning=False, disable_naive
     if disable_naive:
         print("   - Naive generation disabled")
     
-    generator = ReasoningTraceGenerator(api_key, output_file='../data/test_responses.jsonl')
+    # Determine output file based on dataset
+    if use_codetest:
+        output_file = '../data/test_responses_codetest.jsonl'
+    else:
+        output_file = '../data/test_responses_taco.jsonl'
+    
+    generator = ReasoningTraceGenerator(api_key, output_file=output_file)
     
     # Set filtering options
     generator.disable_input_filtering = disable_input_filtering

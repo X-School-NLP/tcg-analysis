@@ -32,6 +32,31 @@ body {
 .file-input input { display: none; }
 .file-input.small { font-size: 12px; }
 
+.dataset-selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.dataset-selector label {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.dataset-selector select {
+  background: #0f1720;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
 button, select, input, textarea {
   background: #0f1720;
   color: var(--text);

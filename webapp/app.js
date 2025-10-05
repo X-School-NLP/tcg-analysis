@@ -13,6 +13,8 @@ const state = {
 
 /* Elements */
 const el = {
+  datasetSelect: document.getElementById('datasetSelect'),
+  loadDataset: document.getElementById('loadDataset'),
   responsesFile: document.getElementById('responsesFile'),
   problemsFile: document.getElementById('problemsFile'),
   demoLoad: document.getElementById('demoLoad'),
@@ -192,6 +194,61 @@ async function loadJsonUrl(url) {
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Failed to load ${url}: ${res.status}`);
   return await res.json();
+}
+
+async function loadDataset(dataset) {
+  try {
+    console.log(`Loading ${dataset} dataset...`);
+    
+    // Load responses - try test files first, then fall back to main files
+    const testResponsesUrl = `../data/test_responses_${dataset}.jsonl`;
+    const mainResponsesUrl = `../data/responses_${dataset}.jsonl`;
+    
+    let response = await fetch(testResponsesUrl, { cache: 'no-store' });
+    if (!response.ok) {
+      response = await fetch(mainResponsesUrl, { cache: 'no-store' });
+    }
+    
+    if (response.ok) {
+      const text = await response.text();
+      const responses = text.trim().split('\n').map(line => JSON.parse(line));
+      state.responses = normalizeResponses(responses);
+      console.log(`Loaded ${state.responses.length} responses from ${dataset} dataset`);
+    } else {
+      console.warn(`Failed to load responses from ${testResponsesUrl} or ${mainResponsesUrl}`);
+      state.responses = [];
+    }
+    
+    // Load problems
+    const problemsUrl = dataset === 'codetest' 
+      ? '../data/validation_problems_codetest.json'
+      : '../data/validation_problems.json';
+    
+    const problemsResponse = await fetch(problemsUrl, { cache: 'no-store' });
+    if (problemsResponse.ok) {
+      const problemsData = await problemsResponse.json();
+      const problems = Array.isArray(problemsData) ? problemsData : [problemsData];
+      indexProblems(problems);
+      console.log(`Loaded ${problems.length} problems from ${dataset} dataset`);
+    } else {
+      console.warn(`Failed to load problems from ${problemsUrl}`);
+    }
+    
+    // Load server-side annotations
+    await loadServerAnnotations();
+    
+    // Update UI
+    hydrateFilters();
+    state.pagination.page = 1;
+    refreshSubmittedBtnLabel();
+    refreshCorrectBtnLabel();
+    render();
+    
+    console.log(`Successfully loaded ${dataset} dataset`);
+  } catch (error) {
+    console.error(`Error loading ${dataset} dataset:`, error);
+    alert(`Failed to load ${dataset} dataset: ${error.message}`);
+  }
 }
 
 function indexProblems(rows) {
@@ -535,6 +592,11 @@ function renderCategoryList() {
 }
 
 /* Events */
+el.loadDataset.addEventListener('click', () => {
+  const dataset = el.datasetSelect.value;
+  loadDataset(dataset);
+});
+
 el.responsesFile.addEventListener('change', async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
@@ -748,8 +810,8 @@ render();
   } catch (_) { /* ignore */ }
 
   try {
-    // Try to load responses from JSONL format
-    const response = await fetch('../data/test_responses.jsonl', { cache: 'no-store' });
+    // Try to load responses from test TACO file first
+    const response = await fetch('../data/test_responses_taco.jsonl', { cache: 'no-store' });
     if (response.ok) {
       const text = await response.text();
       const responses = text.trim().split('\n').map(line => JSON.parse(line));
@@ -759,8 +821,8 @@ render();
   } catch (_) { /* ignore */ }
 
   try {
-    // Try to load responses from responses.jsonl as fallback
-    const response = await fetch('../data/responses.jsonl', { cache: 'no-store' });
+    // Try to load responses from main TACO file as fallback
+    const response = await fetch('../data/responses_taco.jsonl', { cache: 'no-store' });
     if (response.ok) {
       const text = await response.text();
       const responses = text.trim().split('\n').map(line => JSON.parse(line));
