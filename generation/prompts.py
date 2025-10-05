@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
-from utils import test_code_multi_cases, extract_code
+from utils import test_code_multi_cases
 from data_structures import CodeResult
 
 def get_naive_coder_prompt(problem_description: str, input_format: str) -> str:
@@ -47,8 +47,6 @@ def normalize_text(text):
 
 def find_sample_input_output_pairs(problem_description: str):
     """Extract sample input/output pairs from problem description."""
-    import re
-    
     # Look for common patterns in competitive programming problems
     patterns = [
         # Pattern 1: Sample Input: ... Sample Output: ...
@@ -197,17 +195,6 @@ def get_reasoner_schema() -> Dict[str, Any]:
         },
         "required": ["outputs"]
     }
-
-def extract_python_code(text: str) -> Optional[str]:
-    """Extract Python code from text using regex (last match)."""
-    # Pattern to match Python code blocks
-    pattern = r'```python\s*\n(.*?)\n```'
-    matches = re.findall(pattern, text, re.DOTALL)
-    
-    if matches:
-        # Return the last match (most recent code)
-        return matches[-1].strip()
-    return None
 
 def parse_input_output(input_output_str: str) -> dict:
     """Parse the input_output field to extract inputs and outputs."""

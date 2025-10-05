@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Test script for code extraction functionality."""
 
-from prompts import extract_python_code, get_naive_coder_prompt, get_reasoner_prompt, get_reasoner_schema
+from utils import extract_code
+from prompts import get_naive_coder_prompt, get_reasoner_prompt, get_reasoner_schema
 
 def test_code_extraction():
     """Test the code extraction functionality."""
@@ -23,7 +24,7 @@ def goodbye():
 ```
 '''
     
-    code = extract_python_code(test_text)
+    code = extract_code(test_text, language="python")
     print(f"Extracted code: {repr(code)}")
     
     expected = "def goodbye():\n    return 'universe'"

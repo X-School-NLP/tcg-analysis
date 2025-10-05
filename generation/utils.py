@@ -7,6 +7,7 @@ import sys
 import multiprocessing
 import ast
 import asyncio
+import logging
 
 # Import resource module only on Unix-like systems (not available on Windows)
 try:
@@ -49,7 +50,8 @@ def clean_if_main(code: str) -> str:
                 code = (
                     ast.unparse(astree.body[:-1]) + "\n" + ast.unparse(last_block.body)  # type: ignore
                 )
-    except:
+    except (SyntaxError, ValueError, IndexError, AttributeError):
+        # If parsing fails, return original code
         pass
 
     return code
@@ -72,7 +74,6 @@ def extract_configuration(text: str) -> List[str]:
     """
     return re.findall(r"\*\*Configuration:\*\* `(.*?)`", text, re.DOTALL)
 
-# TODO: Fix ts
 def reliability_guard(memory_limit: float = 256):
     """
     Set resource limits for memory usage to prevent system overload
@@ -100,14 +101,23 @@ def run_code(
     code: str,
     case_input: str,
     output_queue: multiprocessing.Queue,
-    memory_limit: float = 256
+    memory_limit: float = 256,
+    use_reliability_guard: bool = False
 ):
     """
     Run a piece of code with given inputs and capture the outputs
     This function is designed to run in a separate process for isolation
+    
+    Args:
+        code: Python code to execute
+        case_input: Input string for the code
+        output_queue: Queue to store execution results
+        memory_limit: Memory limit in MB
+        use_reliability_guard: Enable memory limit enforcement (may not work on all platforms)
     """
     
-    #reliability_guard(memory_limit)
+    if use_reliability_guard:
+        reliability_guard(memory_limit)
     
     def get_peak_memory_mb():
         """Get peak memory usage in MB"""
@@ -298,15 +308,18 @@ def test_multi_code(
 
     return results_by_code
         
-def load_json(file_path: str, default: dict = {}):
+def load_json(file_path: str, default: dict = None):
     """
     Load JSON data from file with error handling
     Returns default value if file doesn't exist or is invalid
     """
+    if default is None:
+        default = {}
     try:
         with open(file_path, "r") as f:
             return json.load(f)
-    except:
+    except (FileNotFoundError, json.JSONDecodeError, IOError) as e:
+        logging.warning(f"Failed to load JSON from {file_path}: {e}")
         return default
     
 def save_json(file_path: str, data: dict):

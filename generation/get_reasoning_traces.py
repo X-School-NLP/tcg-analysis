@@ -10,6 +10,7 @@ import json
 import time
 import os
 import logging
+import re
 from typing import Dict, List, Any
 from tqdm import tqdm
 from dotenv import load_dotenv
@@ -18,10 +19,10 @@ from prompts import (
     get_naive_coder_prompt, 
     get_reasoner_prompt, 
     get_reasoner_schema,
-    extract_python_code,
     generate_test_inputs,
     SandboxExecutor
 )
+from utils import extract_code
 from confusion_matrix_utils import calculate_confusion_matrix_stats
 
 # Load environment variables
@@ -147,7 +148,6 @@ class ReasoningTraceGenerator:
                 # Extract JSON from the end of the response
                 try:
                     # Look for JSON in code blocks first
-                    import re
                     json_pattern = r'```json\s*(\{.*?\})\s*```'
                     json_match = re.search(json_pattern, full_response, re.DOTALL)
                     
@@ -167,7 +167,6 @@ class ReasoningTraceGenerator:
                             reasoning_text = full_response
                             
                             # Try to extract outputs from text patterns
-                            import re
                             # Look for patterns like "Expected outputs: ['4', '-1', '-1']"
                             outputs_pattern = r'Expected outputs:\s*\[(.*?)\]'
                             outputs_match = re.search(outputs_pattern, full_response)
@@ -183,7 +182,7 @@ class ReasoningTraceGenerator:
                                     # Only take the first N outputs where N is the number of filtered inputs
                                     expected_outputs = outputs[:len(filtered_inputs)]
                                     generated_outputs = outputs[:len(filtered_inputs)]
-                                except:
+                                except (IndexError, ValueError, AttributeError):
                                     expected_outputs = [str(output) for output in test_outputs]
                                     generated_outputs = ["N/A"] * len(filtered_inputs)
                             else:
@@ -244,7 +243,7 @@ class ReasoningTraceGenerator:
                 )
                 
                 # Extract Python code from the response
-                extracted_code = extract_python_code(trace)
+                extracted_code = extract_code(trace, language="python")
                 
                 # Execute code with multiple test inputs
                 execution_results = []
@@ -325,21 +324,8 @@ class ReasoningTraceGenerator:
             # Add reasoner task  
             tasks.append(self.generate_response(problem, "reasoning"))
         
-        # Process with progress bar
-        logger.info(f"Generating {len(tasks)} responses...")
-        results = []
-        
-        # Use asyncio.as_completed with tqdm
-        with tqdm(total=len(tasks), desc="Generating responses") as pbar:
-            for coro in asyncio.as_completed(tasks):
-                result = await coro
-                if result:
-                    results.append(result)
-                pbar.update(1)
-                # Small delay to avoid rate limiting
-                await asyncio.sleep(0.1)
-        
-        logger.info(f"Generated {len(results)} responses, saved to {self.output_file}")
+        # Process tasks with common helper
+        await self._process_tasks(tasks)
     
     async def process_problems_from_list(self, problems):
         """Process problems from a list of Problem objects."""
@@ -357,7 +343,24 @@ class ReasoningTraceGenerator:
             # Add reasoner task  
             tasks.append(self.generate_response(problem, "reasoning"))
         
-        # Process with progress bar
+        # Process tasks with common helper
+        await self._process_tasks(tasks)
+    
+    def save_results(self, output_file: str = "responses.jsonl"):
+        """Save results to JSONL format (already saved line by line)."""
+        logger.info(f"Responses already saved to {self.output_file} during generation")
+        logger.info(f"Total responses: {len(self.results)}")
+    
+    async def _process_tasks(self, tasks: List):
+        """
+        Process async tasks with progress tracking.
+        
+        Args:
+            tasks: List of async tasks to execute
+            
+        Returns:
+            List of successful results
+        """
         logger.info(f"Generating {len(tasks)} responses...")
         results = []
         
@@ -372,11 +375,7 @@ class ReasoningTraceGenerator:
                 await asyncio.sleep(0.1)
         
         logger.info(f"Generated {len(results)} responses, saved to {self.output_file}")
-    
-    def save_results(self, output_file: str = "responses.jsonl"):
-        """Save results to JSONL format (already saved line by line)."""
-        logger.info(f"Responses already saved to {self.output_file} during generation")
-        logger.info(f"Total responses: {len(self.results)}")
+        return results
 
 async def main():
     """Main function to run the trace generation."""

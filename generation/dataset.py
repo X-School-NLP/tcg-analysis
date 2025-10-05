@@ -7,7 +7,9 @@ import os
 import asyncio
 import tqdm
 import sys
+import ast
 from data_structures import Problem, Config
+from utils import load_json
 
 # set maximum integer string digits to avoid overflow issues
 sys.set_int_max_str_digits(0)
@@ -17,17 +19,6 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-
-def load_json(file_path: str, default: dict = {}):
-    """
-    Load JSON data from file with error handling
-    Returns default value if file doesn't exist or is invalid
-    """
-    try:
-        with open(file_path, "r") as f:
-            return json.load(f)
-    except:
-        return default
 
 def map_taco_problem(problem: dict, idx: int) -> Problem:
     """
@@ -59,7 +50,7 @@ def map_taco_problem(problem: dict, idx: int) -> Problem:
         sample_inputs = in_out["inputs"],
         sample_outputs = in_out["outputs"],
         difficulty = problem.get("difficulty") or "UNKNOWN_DIFFICULTY",
-        solutions = eval(problem["solutions"]) if problem["solutions"] else [],
+        solutions = ast.literal_eval(problem["solutions"]) if problem["solutions"] else [],
         time_limit = time_limit,
         memory_limit = memory_limit
     )
@@ -100,7 +91,8 @@ def get_mapped_taco(config: Config, split="train", remove_interactive=True) -> L
             try:
                 logging.info(f"Loading saved TACO mapping in path {config.mapped_taco_path}")
                 return pickle.load(f)
-            except:
+            except (pickle.UnpicklingError, EOFError, IOError) as e:
+                logging.warning(f"Failed to load cached TACO mapping: {e}, recreating...")
                 return map_full()
     else:
         # create directory and process dataset if cache doesn't exist
